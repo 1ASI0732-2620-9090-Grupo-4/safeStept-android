@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">SafeStep</string>
+    <string name="pilot_notice">Piloto académico. Esta app sirve para aprender y no sustituye la atención médica de emergencia.</string>
+    <string name="api_url">URL de la API</string>
+    <string name="username">Usuario</string>
+    <string name="password">Contraseña</string>
+    <string name="sign_in">Ingresar</string>
+    <string name="sign_up">Crear cuenta</string>
+    <string name="sign_out">Cerrar sesión</string>
+    <string name="simulations">Simulaciones</string>
+    <string name="progress">Progreso</string>
+    <string name="catalog">Catálogo</string>
+    <string name="finish_simulation">Finalizar simulación</string>
+    <string name="result_title">Resultado de la simulación</string>
+    <string name="view_progress">Ver progreso</string>
+    <string name="level">Nivel</string>
+    <string name="completed">Simulaciones completadas</string>
+</resources>

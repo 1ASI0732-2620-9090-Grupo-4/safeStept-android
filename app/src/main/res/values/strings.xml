@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">SafeStep</string>
+    <string name="pilot_notice">Academic pilot. This app is for learning and does not replace emergency medical assistance.</string>
+    <string name="api_url">API URL</string>
+    <string name="username">Username</string>
+    <string name="password">Password</string>
+    <string name="sign_in">Sign in</string>
+    <string name="sign_up">Create account</string>
+    <string name="sign_out">Sign out</string>
+    <string name="simulations">Simulations</string>
+    <string name="progress">Progress</string>
+    <string name="catalog">Catalog</string>
+    <string name="finish_simulation">Finish simulation</string>
+    <string name="result_title">Simulation result</string>
+    <string name="view_progress">View progress</string>
+    <string name="level">Level</string>
+    <string name="completed">Completed simulations</string>
+</resources>
