@@ -3,245 +3,195 @@ package com.safestep.mobile
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.MedicalServices
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.dp
-import com.safestep.mobile.data.AttemptScorer
-import com.safestep.mobile.data.AttemptSubmission
-import com.safestep.mobile.data.Product
-import com.safestep.mobile.data.Progress
-import com.safestep.mobile.data.SafeStepApi
-import com.safestep.mobile.data.Simulation
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.safestep.mobile.commerce.CartScreen
+import com.safestep.mobile.commerce.OrdersScreen
+import com.safestep.mobile.commerce.ProductDetailScreen
+import com.safestep.mobile.commerce.StoreScreen
+import com.safestep.mobile.gamification.ProgressScreen
+import com.safestep.mobile.home.HomeScreen
+import com.safestep.mobile.iam.ForgotPasswordScreen
+import com.safestep.mobile.iam.LoginScreen
+import com.safestep.mobile.iam.RegisterScreen
+import com.safestep.mobile.profile.ProfileScreen
+import com.safestep.mobile.simulation.SimulationListScreen
+import com.safestep.mobile.simulation.SimulationScreen
+import com.safestep.mobile.ui.LocalContainer
+import com.safestep.mobile.ui.ProvideContainer
+import com.safestep.mobile.ui.SafeStepTheme
 import kotlinx.coroutines.launch
-import java.time.Instant
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        val container = (application as SafeStepApp).container
         setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) { SafeStepScreen() }
+            SafeStepTheme {
+                Surface {
+                    ProvideContainer(container) { AppRoot() }
+                }
             }
         }
     }
 }
 
+private object Route {
+    const val Login = "login"
+    const val Register = "register"
+    const val Forgot = "forgot"
+    const val Home = "home"
+    const val Simulations = "simulations"
+    const val Simulation = "simulation/{id}"
+    const val Progress = "progress"
+    const val Store = "store"
+    const val Product = "product/{id}"
+    const val Cart = "cart"
+    const val Orders = "orders"
+    const val Profile = "profile"
+}
+
+private data class Tab(val route: String, val label: Int, val icon: ImageVector)
+
+private val tabs = listOf(
+    Tab(Route.Home, R.string.nav_home, Icons.Filled.Home),
+    Tab(Route.Simulations, R.string.nav_simulations, Icons.Filled.MedicalServices),
+    Tab(Route.Progress, R.string.nav_progress, Icons.Filled.EmojiEvents),
+    Tab(Route.Store, R.string.nav_store, Icons.Filled.ShoppingBag),
+    Tab(Route.Profile, R.string.nav_profile, Icons.Filled.Person),
+)
+
 @Composable
-private fun SafeStepScreen() {
-    var baseUrl by remember { mutableStateOf("http://10.0.2.2:8092/api/v1") }
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var authenticated by remember { mutableStateOf(false) }
-    var busy by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf("") }
-    var currentTab by remember { mutableStateOf("simulations") }
-    var selectedSimulation by remember { mutableStateOf<Simulation?>(null) }
-    var lastResult by remember { mutableStateOf<AttemptSubmission?>(null) }
-    var startedAt by remember { mutableStateOf(Instant.now()) }
-    var progress by remember { mutableStateOf<Progress?>(null) }
-    val simulations = remember { mutableStateListOf<Simulation>() }
-    val products = remember { mutableStateListOf<Product>() }
-    val answers = remember { mutableStateMapOf<String, String>() }
-    val api = remember(baseUrl) { SafeStepApi(baseUrl) }
-    val scope = rememberCoroutineScope()
+private fun AppRoot() {
+    val container = LocalContainer.current
+    val session by container.sessions.session.collectAsStateWithLifecycle()
+    val current = session
+    if (current == null) AuthHost() else MainHost(current.username)
+}
 
-    fun runAction(action: suspend () -> Unit) {
-        scope.launch {
-            busy = true
-            message = ""
-            try {
-                action()
-            } catch (error: Exception) {
-                message = error.message ?: "Request failed"
-            } finally {
-                busy = false
-            }
-        }
+@Composable
+private fun AuthHost() {
+    val nav = rememberNavController()
+    NavHost(nav, startDestination = Route.Login) {
+        composable(Route.Login) { LoginScreen(onRegister = { nav.navigate(Route.Register) }, onForgot = { nav.navigate(Route.Forgot) }) }
+        composable(Route.Register) { RegisterScreen(onLogin = { nav.popBackStack() }) }
+        composable(Route.Forgot) { ForgotPasswordScreen(onBack = { nav.popBackStack() }) }
     }
+}
 
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text(stringResource(R.string.pilot_notice), style = MaterialTheme.typography.bodySmall)
-
-        if (!authenticated) {
-            OutlinedTextField(
-                value = baseUrl,
-                onValueChange = { baseUrl = it },
-                label = { Text(stringResource(R.string.api_url)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
-                label = { Text(stringResource(R.string.username)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text(stringResource(R.string.password)) },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    enabled = !busy && username.isNotBlank() && password.length >= 8,
-                    onClick = {
-                        runAction {
-                            api.signIn(username.trim(), password)
-                            authenticated = true
-                            simulations.clear()
-                            simulations.addAll(api.simulations())
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MainHost(username: String) {
+    val container = LocalContainer.current
+    val nav = rememberNavController()
+    val scope = rememberCoroutineScope()
+    val entry by nav.currentBackStackEntryAsState()
+    val destination = entry?.destination
+    val isTopLevel = tabs.any { tab -> destination?.hierarchy?.any { it.route == tab.route } == true } &&
+        tabs.any { it.route == destination?.route }
+    val title = when (destination?.route) {
+        Route.Simulation -> R.string.nav_simulations
+        Route.Product -> R.string.nav_store
+        Route.Cart -> R.string.cart
+        Route.Orders -> R.string.my_orders
+        else -> tabs.firstOrNull { it.route == destination?.route }?.label ?: R.string.app_name
+    }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(title)) },
+                navigationIcon = {
+                    if (!isTopLevel) {
+                        IconButton(onClick = { nav.popBackStack() }, modifier = Modifier.testTag("back")) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
                         }
-                    },
-                ) { Text(stringResource(R.string.sign_in)) }
-                OutlinedButton(
-                    enabled = !busy && username.length >= 3 && password.length >= 8,
-                    onClick = {
-                        runAction {
-                            api.signUp(username.trim(), password)
-                            api.signIn(username.trim(), password)
-                            authenticated = true
-                            simulations.clear()
-                            simulations.addAll(api.simulations())
-                        }
-                    },
-                ) { Text(stringResource(R.string.sign_up)) }
-            }
-        } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = {
-                    api.signOut()
-                    authenticated = false
-                    selectedSimulation = null
-                    lastResult = null
-                    currentTab = "simulations"
-                    password = ""
-                }) { Text(stringResource(R.string.sign_out)) }
-            }
-            HorizontalDivider()
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = {
-                    currentTab = "simulations"
-                    selectedSimulation = null
-                    runAction { simulations.clear(); simulations.addAll(api.simulations()) }
-                }) { Text(stringResource(R.string.simulations)) }
-                OutlinedButton(onClick = {
-                    currentTab = "progress"
-                    runAction { progress = api.progress() }
-                }) { Text(stringResource(R.string.progress)) }
-                OutlinedButton(onClick = {
-                    currentTab = "catalog"
-                    runAction { products.clear(); products.addAll(api.products()) }
-                }) { Text(stringResource(R.string.catalog)) }
-            }
-
-            when (currentTab) {
-                "simulations" -> {
-                    val selected = selectedSimulation
-                    if (selected == null) {
-                        simulations.forEach { simulation ->
-                            OutlinedButton(onClick = {
-                                runAction {
-                                    selectedSimulation = api.simulation(simulation.id)
-                                    answers.clear()
-                                    startedAt = Instant.now()
-                                }
-                            }, modifier = Modifier.fillMaxWidth()) {
-                                Text("${simulation.title} · ${simulation.difficulty}")
+                    }
+                },
+            )
+        },
+        bottomBar = {
+            NavigationBar {
+                tabs.forEach { tab ->
+                    NavigationBarItem(
+                        selected = destination?.hierarchy?.any { it.route == tab.route } == true,
+                        onClick = {
+                            nav.navigate(tab.route) {
+                                popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
                             }
-                        }
-                    } else {
-                        Text(selected.title, style = MaterialTheme.typography.titleLarge)
-                        Text(selected.description)
-                        selected.steps.forEachIndexed { index, step ->
-                            Text("${index + 1}. ${step.prompt}", fontWeight = FontWeight.SemiBold)
-                            step.options.forEach { option ->
-                                Row {
-                                    RadioButton(
-                                        selected = answers[step.id] == option.id,
-                                        onClick = { answers[step.id] = option.id },
-                                    )
-                                    Text(option.label, modifier = Modifier.padding(top = 12.dp))
-                                }
-                            }
-                        }
-                        Button(
-                            enabled = !busy && selected.steps.isNotEmpty() && answers.size == selected.steps.size,
-                            onClick = {
-                                runAction {
-                                    val attempt = AttemptScorer.evaluate(selected, answers, startedAt, Instant.now())
-                                    api.submitAttempt(selected.id, attempt)
-                                    lastResult = attempt
-                                    currentTab = "result"
-                                    selectedSimulation = null
-                                    answers.clear()
-                                }
-                            },
-                        ) { Text(stringResource(R.string.finish_simulation)) }
-                    }
+                        },
+                        icon = { Icon(tab.icon, null) },
+                        label = { Text(stringResource(tab.label)) },
+                        modifier = Modifier.testTag("tab_${tab.route}"),
+                    )
                 }
-                "progress" -> {
-                    progress?.let {
-                        Text("${stringResource(R.string.level)}: ${it.level}")
-                        Text("XP: ${it.xp}")
-                        Text("SafeCoins: ${it.safeCoins}")
-                        Text("${stringResource(R.string.completed)}: ${it.completedSimulations}")
-                    }
-                }
-                "result" -> {
-                    lastResult?.let { result ->
-                        Text(stringResource(R.string.result_title), style = MaterialTheme.typography.titleLarge)
-                        Text("${result.score}% · ${result.correctSteps}/${result.totalSteps}")
-                        OutlinedButton(onClick = {
-                            currentTab = "progress"
-                            runAction { progress = api.progress() }
-                        }) { Text(stringResource(R.string.view_progress)) }
-                    }
-                }
-                "catalog" -> products.forEach { product ->
-                    Text(product.name, fontWeight = FontWeight.SemiBold)
-                    Text("${product.category} · ${product.price}")
-                    HorizontalDivider()
-                }
+            }
+        },
+    ) { padding ->
+        NavHost(nav, startDestination = Route.Home, modifier = Modifier.padding(padding)) {
+            composable(Route.Home) {
+                HomeScreen(
+                    username = username,
+                    onOpenSimulation = { nav.navigate("simulation/$it") },
+                    onSimulations = { nav.navigate(Route.Simulations) },
+                    onProgress = { nav.navigate(Route.Progress) },
+                )
+            }
+            composable(Route.Simulations) { SimulationListScreen(onOpen = { nav.navigate("simulation/$it") }) }
+            composable(Route.Simulation, arguments = listOf(navArgument("id") { type = NavType.StringType })) { backStack ->
+                SimulationScreen(
+                    simulationId = backStack.arguments?.getString("id").orEmpty(),
+                    onClose = { nav.popBackStack() },
+                    onProgress = { nav.navigate(Route.Progress) },
+                    onStore = { nav.navigate(Route.Store) },
+                )
+            }
+            composable(Route.Progress) { ProgressScreen(username) }
+            composable(Route.Store) {
+                StoreScreen(onProduct = { nav.navigate("product/$it") }, onCart = { nav.navigate(Route.Cart) }, onOrders = { nav.navigate(Route.Orders) })
+            }
+            composable(Route.Product, arguments = listOf(navArgument("id") { type = NavType.StringType })) { backStack ->
+                ProductDetailScreen(backStack.arguments?.getString("id").orEmpty(), onCart = { nav.navigate(Route.Cart) })
+            }
+            composable(Route.Cart) { CartScreen(onShop = { nav.popBackStack(Route.Store, false) }, onOrders = { nav.navigate(Route.Orders) }) }
+            composable(Route.Orders) { OrdersScreen() }
+            composable(Route.Profile) {
+                ProfileScreen(username, onSignOut = { scope.launch { container.auth.signOut() } })
             }
         }
-
-        if (busy) CircularProgressIndicator(modifier = Modifier.width(32.dp))
-        if (message.isNotBlank()) Text(message, color = MaterialTheme.colorScheme.primary)
     }
 }
