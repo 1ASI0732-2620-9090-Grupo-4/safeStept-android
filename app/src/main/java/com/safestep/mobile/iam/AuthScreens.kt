@@ -170,7 +170,7 @@ fun ForgotPasswordScreen(onBack: () -> Unit) {
                 UsernameField(username, { username = it; model.clearError() }, fieldMessage(state.fieldErrors, FieldError.UsernameTooShort, FieldError.UsernameTooLong))
                 ErrorLine(state.error)
                 BusyButton(stringResource(R.string.request_reset), state.busy, { model.requestReset(username) }, "request_reset")
-                TextButton(onClick = onBack) { Text(stringResource(R.string.back_to_sign_in)) }
+                TextButton(onClick = onBack, modifier = Modifier.testTag("back_to_login")) { Text(stringResource(R.string.back_to_sign_in)) }
             }
             else -> {
                 Text(stringResource(R.string.reset_token_hint))
