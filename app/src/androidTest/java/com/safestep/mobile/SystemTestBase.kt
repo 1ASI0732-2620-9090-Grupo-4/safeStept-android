@@ -119,6 +119,9 @@ abstract class SystemTestBase {
     /** Saves a screenshot of the device in the app's external files folder (pulled with adb for the report). */
     protected fun shot(name: String) {
         compose.waitForIdle()
+        // Images and lists arrive asynchronously; Compose is idle before they paint, so give them time to settle.
+        Thread.sleep(3000)
+        compose.waitForIdle()
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val bitmap = instrumentation.uiAutomation.takeScreenshot()
         val dir = File(instrumentation.targetContext.getExternalFilesDir(null), "screens").apply { mkdirs() }
